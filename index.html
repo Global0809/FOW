@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FabricOnWheels | The New Standard</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Manrope:wght@200;300;400;500;600&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        void: '#050505',
+                        gold: '#C5A059', // Richer Gold
+                        paper: '#F2F0E9', // Warm White
+                        'fow-green': '#0e2b24', // Deep British Green
+                        'glass-dark': 'rgba(10, 10, 10, 0.6)'
+                    },
+                    fontFamily: {
+                        serif: ['"Italiana"', 'serif'],
+                        sans: ['"Manrope"', 'sans-serif'],
+                        tech: ['"Syncopate"', 'sans-serif'],
+                    },
+                    animation: {
+                        'spin-slow': 'spin 30s linear infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        scan: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(500%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --cursor-size: 20px;
+        }
+
+        body {
+            background-color: #050505;
+            color: #F2F0E9;
+            cursor: none;
+            overflow-x: hidden;
+            font-feature-settings: "ss01", "ss02";
+        }
+
+        /* Custom Inverted Cursor */
+        .cursor {
+            position: fixed; top: 0; left: 0;
+            width: var(--cursor-size); height: var(--cursor-size);
+            border: 1px solid #fff; border-radius: 50%;
+            pointer-events: none; z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s, background-color 0.3s;
+            mix-blend-mode: difference;
+        }
+        body.hover-active .cursor {
+            width: 80px; height: 80px;
+            background-color: white; border-color: transparent;
+        }
+        @media (hover: none) and (pointer: coarse) {
+            .cursor { display: none; }
+            body { cursor: auto; }
+        }
+
+        /* Background Layers */
+        #reactive-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; opacity: 0.4; pointer-events: none;
+        }
+        
+        #neural-bg {
+             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+             z-index: 0; pointer-events: none;
+        }
+
+        .noise {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; opacity: 0.04; z-index: 9000;
+            background: url('data:image/svg+xml;utf8,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+        }
+        
+        .watermark {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; opacity: 0.02;
+            background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' version='1.1' height='150px' width='150px'%3E%3Ctext transform='translate(20, 100) rotate(-45)' fill='white' font-family='sans-serif' font-weight='bold' font-size='14' letter-spacing='2'%3EFOW x ACF%3C/text%3E%3C/svg%3E");
+        }
+
+        .thread-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            pointer-events: none; z-index: 5;
+        }
+        .thread-path {
+            fill: none; stroke: #C5A059; stroke-width: 1.5px;
+            stroke-dasharray: 2000; stroke-dashoffset: 2000;
+        }
+
+        .showroom-wrapper { 
+            width: max-content; 
+            display: flex; 
+            flex-wrap: nowrap; 
+            will-change: transform;
+        }
+
+        .reveal-text span {
+            display: inline-block; transform: translateY(100%);
+            clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-active span {
+            transform: translateY(0); clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        }
+
+        /* Arrival Card */
+        .spec-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .scan-line {
+            background: linear-gradient(to bottom, transparent, #C5A059, transparent);
+            height: 100px; width: 100%; position: absolute; top: 0; left: 0;
+            opacity: 0.1; pointer-events: none;
+        }
+        
+        /* PREMIUM OBSIDIAN CARDS */
+        .obsidian-card {
+            background: linear-gradient(145deg, rgba(20, 20, 20, 0.9), rgba(5, 5, 5, 0.95));
+            border: 1px solid rgba(197, 160, 89, 0.2); /* Gold border */
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.8);
+        }
+        .obsidian-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 0%, rgba(197, 160, 89, 0.15), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .obsidian-card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(197, 160, 89, 0.6);
+            box-shadow: 0 20px 40px -10px rgba(197, 160, 89, 0.1);
+        }
+        .obsidian-card:hover::after {
+            opacity: 1;
+        }
+        
+        .marquee-vertical {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+        
+        html { scroll-behavior: smooth; }
+        .min-h-screen-ios { min-height: 100vh; min-height: 100svh; }
+    </style>
+</head>
+<body class="antialiased bg-void">
+
+    <div class="noise"></div>
+    <div class="watermark"></div>
+    <div class="cursor"></div>
+    <canvas id="reactive-bg"></canvas>
+
+    <div class="thread-container">
+        <svg width="100%" height="100%" preserveAspectRatio="none">
+            <path id="golden-thread" class="thread-path" d="M50,0 Q50,300 150,400 T400,600 T150,900 T50,1200" vector-effect="non-scaling-stroke"/>
+        </svg>
+    </div>
+
+    <!-- Navigation (Absolute to remain on first slide only) -->
+    <nav class="absolute top-0 w-full p-6 md:p-8 flex justify-between items-start mix-blend-difference z-50 text-white">
+        <div class="font-serif text-xl md:text-2xl tracking-widest hover-trigger" data-hover="brand">FOW x ACF</div>
+        <div class="flex flex-col items-end gap-1 font-sans text-[8px] md:text-[10px] uppercase tracking-[0.2em] text-gold">
+            <span>Mobile Design Studio</span>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <header class="relative min-h-screen-ios flex flex-col justify-center items-center overflow-hidden z-10" id="hero">
+        <div class="absolute inset-0 z-0">
+            <img src="https://images.unsplash.com/photo-1620626012780-60f785b46e3a?q=80&w=2500&auto=format&fit=crop" 
+                 class="w-full h-full object-cover opacity-20 grayscale scale-110" id="hero-bg" alt="Texture">
+        </div>
+        
+        <div class="z-10 text-center px-4">
+            <h1 class="font-serif text-5xl md:text-[10vw] leading-[0.9] md:leading-[0.85] mb-6 md:mb-8 relative mix-blend-lighten text-paper">
+                <div class="reveal-text"><span>LUXURY</span></div>
+                <div class="reveal-text"><span>COMES</span></div>
+                <div class="reveal-text"><span class="text-gold italic">HOME.</span></div>
+            </h1>
+            <p class="font-sans text-[10px] md:text-sm tracking-[0.3em] md:tracking-[0.4em] uppercase opacity-60 mt-6 md:mt-8 max-w-md mx-auto reveal-text text-white">
+                <span>The Showroom That Comes To You</span>
+            </p>
+        </div>
+        
+        <div class="absolute bottom-12 left-1/2 -translate-x-1/2 text-center">
+            <div class="w-px h-16 bg-white/10 mx-auto overflow-hidden">
+                <div class="w-full h-full bg-gold animate-[drop_2s_infinite]"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- SECTION 1: The Arrival -->
+    <section class="py-20 md:py-32 px-6 md:px-20 relative z-10 overflow-hidden" id="arrival">
+        <div class="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 md:gap-24 items-center">
+            
+            <div class="relative order-2 lg:order-1 perspective-1000 h-[500px] md:h-[600px] flex items-center justify-center">
+                <!-- Monolith Card -->
+                <div class="spec-card w-full max-w-md h-[450px] md:h-[550px] rounded-sm relative overflow-hidden group hover-trigger transform transition-transform duration-700 hover:scale-[1.02] hover:rotate-y-2">
+                    <div class="scan-line animate-scan"></div>
+                    <div class="p-8 md:p-10 h-full flex flex-col justify-between relative z-10">
+                        <div class="flex justify-between items-start border-b border-white/10 pb-6">
+                            <div>
+                                <h3 class="font-tech text-2xl md:text-3xl text-white leading-none mb-2">THE<br>MACHINE</h3>
+                                <p class="text-[10px] tracking-[0.3em] text-gold uppercase">Active Deployment</p>
+                            </div>
+                            <i class="fa-solid fa-bolt text-gold text-xl animate-pulse"></i>
+                        </div>
+                        <div class="space-y-4 md:space-y-6 font-sans text-[10px] md:text-xs tracking-widest text-gray-400">
+                            <div class="flex justify-between items-center group-hover:text-white transition-colors">
+                                <span>TYPE</span><span class="text-white font-bold">MOBILE STUDIO</span>
+                            </div>
+                            <div class="w-full h-px bg-white/10"></div>
+                            <div class="flex justify-between items-center group-hover:text-white transition-colors">
+                                <span>INVENTORY</span><span class="text-white font-bold">100% CURATED</span>
+                            </div>
+                            <div class="w-full h-px bg-white/10"></div>
+                            <div class="flex justify-between items-center group-hover:text-white transition-colors">
+                                <span>EMISSIONS</span><span class="text-white font-bold text-gold">ZERO (EV)</span>
+                            </div>
+                            <div class="w-full h-px bg-white/10"></div>
+                            <div class="flex justify-between items-center group-hover:text-white transition-colors">
+                                <span>STATUS</span><span class="text-white font-bold">EN ROUTE</span>
+                            </div>
+                        </div>
+                        <div class="pt-6 border-t border-white/10">
+                            <h2 class="font-serif text-3xl md:text-4xl text-white/20 group-hover:text-white/80 transition-colors duration-500 italic">FabricOnWheels</h2>
+                        </div>
+                    </div>
+                    <div class="absolute right-0 top-0 h-full w-10 md:w-12 border-l border-white/10 flex items-center justify-center bg-black/20">
+                         <div class="marquee-vertical font-tech text-[8px] md:text-[10px] text-gold tracking-[0.5em] opacity-70 whitespace-nowrap py-4">
+                             ESTABLISHED 2004 // LUXURY TEXTILES
+                         </div>
+                    </div>
+                </div>
+                <!-- Abstract Glow -->
+                <div class="absolute -z-10 w-[300px] h-[300px] md:w-[400px] md:h-[400px] bg-fow-green/40 rounded-full blur-[80px] md:blur-[100px] animate-pulse-glow"></div>
+            </div>
+
+            <div class="order-1 lg:order-2">
+                <span class="font-tech text-gold text-xs tracking-[0.2em] mb-4 block">01 / CONCEPT</span>
+                <h2 class="font-serif text-5xl md:text-8xl mb-6 md:mb-8 leading-[0.9] text-paper">
+                    The Green <br><span class="text-gold italic pl-0 md:pl-12">Arrival</span>
+                </h2>
+                <div class="w-20 md:w-24 h-1 bg-gold mb-8 md:mb-10"></div>
+                <p class="font-sans text-base md:text-lg text-gray-400 leading-relaxed max-w-lg mb-8 md:mb-12 hover-trigger">
+                    Not a van. Not a visit. <span class="text-white font-serif italic text-xl md:text-2xl">A moment.</span><br><br>
+                    We’ve stripped away the noise of the traditional showroom. No driving. No parking. No catalog fatigue. Just our iconic green machine rolling up to your driveway.
+                </p>
+                <div class="flex gap-6">
+                    <a href="#showroom-pin" class="px-6 py-3 border border-white/20 rounded-full text-[10px] md:text-xs tracking-widest uppercase hover:bg-gold hover:text-black hover:border-gold transition-all cursor-pointer hover-trigger">
+                        View Lookbook
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: The Showroom -->
+    <section class="min-h-screen-ios w-full relative z-10 bg-paper text-void overflow-hidden" id="showroom-pin">
+        <div class="absolute top-8 left-8 z-20">
+            <h3 class="font-serif text-2xl md:text-4xl">Your Home Is The Showroom</h3>
+        </div>
+        
+        <div class="showroom-wrapper h-screen flex items-center pl-[10vw] md:pl-[20vw] gap-8 md:gap-16 pr-[20vw]">
+            <!-- Items -->
+            <div class="w-[85vw] md:w-[40vw] h-[60vh] md:h-[70vh] flex-shrink-0 relative group cursor-pointer hover-trigger">
+                <div class="w-full h-full overflow-hidden bg-black">
+                    <img src="https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?q=80&w=1000&auto=format&fit=crop" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt="Sofas">
+                </div>
+                <div class="absolute -bottom-6 md:-bottom-10 left-0">
+                    <h4 class="font-serif text-5xl md:text-8xl italic mix-blend-difference text-white">Sofas</h4>
+                </div>
+            </div>
+            <div class="w-[85vw] md:w-[40vw] h-[60vh] md:h-[70vh] flex-shrink-0 relative group cursor-pointer hover-trigger">
+                <div class="w-full h-full overflow-hidden bg-black">
+                    <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=1000&auto=format&fit=crop" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt="Curtains">
+                </div>
+                <div class="absolute -bottom-6 md:-bottom-10 left-0">
+                    <h4 class="font-serif text-5xl md:text-8xl italic mix-blend-difference text-white">Drapes</h4>
+                </div>
+            </div>
+            <div class="w-[85vw] md:w-[40vw] h-[60vh] md:h-[70vh] flex-shrink-0 relative group cursor-pointer hover-trigger">
+                <div class="w-full h-full overflow-hidden bg-black">
+                    <img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?q=80&w=1000&auto=format&fit=crop" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt="Wallpaper">
+                </div>
+                <div class="absolute -bottom-6 md:-bottom-10 left-0">
+                    <h4 class="font-serif text-5xl md:text-8xl italic mix-blend-difference text-white">Walls</h4>
+                </div>
+            </div>
+            
+            <div class="w-[85vw] md:w-[40vw] flex-shrink-0 flex items-center justify-center">
+                <p class="font-serif text-3xl md:text-5xl text-center leading-tight text-void">
+                    "We design in <br> <span class="text-gold italic">your light.</span>"
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: The Intelligence (Redesigned: Premium & Classy) -->
+    <section class="min-h-screen-ios w-full relative z-10 bg-void text-white overflow-hidden flex flex-col justify-center py-20">
+        <!-- Golden Neural Network Canvas -->
+        <canvas id="neural-bg"></canvas>
+        
+        <div class="container mx-auto px-6 relative z-10">
+            <div class="text-center mb-16 md:mb-24 animate-float">
+                <p class="font-serif text-gold text-lg md:text-xl italic mb-4">The Growth Engine</p>
+                <h2 class="font-serif text-5xl md:text-8xl mb-4 text-paper relative inline-block">
+                    AICANFEEL™
+                    <span class="absolute -top-6 -right-6 text-[10px] font-sans border border-gold/50 px-2 py-1 rounded-full text-gold">V.4.0</span>
+                </h2>
+                <div class="w-px h-16 bg-gradient-to-b from-gold to-transparent mx-auto mt-8"></div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
+                <!-- Obsidian Card 1 -->
+                <div class="obsidian-card p-10 group hover-trigger flex flex-col items-center text-center">
+                    <div class="w-16 h-16 rounded-full border border-gold/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <i class="fa-solid fa-brain text-2xl text-gold"></i>
+                    </div>
+                    <h3 class="font-serif text-2xl text-white mb-4">Deep Emotion</h3>
+                    <p class="text-gray-400 text-xs md:text-sm leading-relaxed font-sans opacity-80 group-hover:opacity-100 transition-opacity">
+                        Algorithms that decode the silent language of home renovation. We target the feeling, not just the demographic.
+                    </p>
+                </div>
+                
+                <!-- Obsidian Card 2 -->
+                <div class="obsidian-card p-10 group hover-trigger flex flex-col items-center text-center">
+                    <div class="w-16 h-16 rounded-full border border-gold/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <i class="fa-solid fa-wand-magic-sparkles text-2xl text-gold"></i>
+                    </div>
+                    <h3 class="font-serif text-2xl text-white mb-4">CGI Pre-Viz</h3>
+                    <p class="text-gray-400 text-xs md:text-sm leading-relaxed font-sans opacity-80 group-hover:opacity-100 transition-opacity">
+                        Cinematic visualizations generated instantly. Customers see the transformation before we even arrive.
+                    </p>
+                </div>
+                
+                <!-- Obsidian Card 3 -->
+                <div class="obsidian-card p-10 group hover-trigger flex flex-col items-center text-center">
+                    <div class="w-16 h-16 rounded-full border border-gold/30 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <i class="fa-solid fa-bullseye text-2xl text-gold"></i>
+                    </div>
+                    <h3 class="font-serif text-2xl text-white mb-4">Intent Data</h3>
+                    <p class="text-gray-400 text-xs md:text-sm leading-relaxed font-sans opacity-80 group-hover:opacity-100 transition-opacity">
+                        Precision signal matching. The green machine only rolls up when the customer is truly ready to design.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="text-center mt-20 opacity-30">
+                <span class="font-serif text-xs tracking-[0.3em] text-gold">FABRIC ON WHEELS × ARTIFICIAL INTELLIGENCE</span>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // --- GLOBAL CANVAS: Digital Silk ---
+        const canvas = document.getElementById('reactive-bg');
+        const ctx = canvas.getContext('2d');
+        let width, height, points = [], time = 0;
+        const mouse = { x: -1000, y: -1000 };
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initFabric();
+        }
+
+        const GAP = 50; 
+        function initFabric() {
+            points = [];
+            for (let x = 0; x <= width + GAP; x += GAP) {
+                let column = [];
+                for (let y = 0; y <= height + GAP; y += GAP) {
+                    column.push({ x, y, originX: x, originY: y, vx: 0, vy: 0 });
+                }
+                points.push(column);
+            }
+        }
+
+        function animateCanvas() {
+            ctx.clearRect(0, 0, width, height);
+            time += 0.015;
+            
+            ctx.strokeStyle = 'rgba(197, 160, 89, 0.2)'; 
+            ctx.lineWidth = 0.5;
+            
+            for (let i = 0; i < points.length; i++) {
+                const col = points[i];
+                ctx.beginPath();
+                ctx.moveTo(col[0].x, col[0].y);
+
+                for (let j = 0; j < col.length; j++) {
+                    const p = col[j];
+                    
+                    const returnForce = 0.03;
+                    p.vx += (p.originX - p.x) * returnForce;
+                    p.vy += (p.originY - p.y) * returnForce;
+                    
+                    const wind = Math.sin(time + p.originY * 0.005 + p.originX * 0.002) * 0.3;
+                    p.vx += wind;
+                    
+                    const dx = mouse.x - p.x;
+                    const dy = mouse.y - p.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < 200) {
+                        const force = (200 - dist) / 200;
+                        const angle = Math.atan2(dy, dx);
+                        p.vx -= Math.cos(angle) * force * 4;
+                        p.vy -= Math.sin(angle) * force * 4;
+                    }
+                    
+                    p.vx *= 0.92; p.vy *= 0.92;
+                    p.x += p.vx; p.y += p.vy;
+
+                    if (j > 0) ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+            }
+            requestAnimationFrame(animateCanvas);
+        }
+
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        resize(); animateCanvas();
+
+
+        // --- SECTION 4 CANVAS: Reactive Golden Neural Network ---
+        const nCanvas = document.getElementById('neural-bg');
+        const nCtx = nCanvas.getContext('2d');
+        let nWidth, nHeight, nodes = [];
+
+        function initNeural() {
+            nWidth = nCanvas.width = window.innerWidth;
+            nHeight = nCanvas.height = window.innerHeight;
+            nodes = [];
+            const count = window.innerWidth < 768 ? 40 : 80;
+            
+            for(let i=0; i<count; i++) {
+                nodes.push({
+                    x: Math.random() * nWidth,
+                    y: Math.random() * nHeight,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5,
+                    size: Math.random() * 2,
+                    // Store original/target velocity for elasticity if needed
+                    ox: Math.random() * nWidth,
+                    oy: Math.random() * nHeight
+                });
+            }
+        }
+
+        function animateNeural() {
+            nCtx.clearRect(0, 0, nWidth, nHeight);
+            
+            // Draw connections
+            nCtx.strokeStyle = 'rgba(197, 160, 89, 0.15)';
+            nCtx.lineWidth = 0.5;
+            
+            for(let i=0; i<nodes.length; i++) {
+                const node = nodes[i];
+                
+                // --- REACTIVE LOGIC START ---
+                // Interact with mouse
+                const dx = mouse.x - node.x;
+                const dy = mouse.y - node.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const interactionRadius = 250;
+
+                if (dist < interactionRadius) {
+                    const force = (interactionRadius - dist) / interactionRadius;
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Push away gently
+                    const pushStrength = 0.8; 
+                    node.vx -= Math.cos(angle) * force * pushStrength;
+                    node.vy -= Math.sin(angle) * force * pushStrength;
+                }
+                // --- REACTIVE LOGIC END ---
+
+                // Standard movement
+                node.x += node.vx;
+                node.y += node.vy;
+                
+                // Boundaries (Bounce)
+                if(node.x < 0 || node.x > nWidth) node.vx *= -1;
+                if(node.y < 0 || node.y > nHeight) node.vy *= -1;
+                
+                // Damping to prevent infinite acceleration from mouse
+                // node.vx *= 0.99; 
+                // node.vy *= 0.99;
+                
+                // Ensure minimum movement so they don't stop completely
+                /*
+                if (Math.abs(node.vx) < 0.2) node.vx = node.vx > 0 ? 0.2 : -0.2;
+                if (Math.abs(node.vy) < 0.2) node.vy = node.vy > 0 ? 0.2 : -0.2;
+                */
+
+                nCtx.beginPath();
+                nCtx.arc(node.x, node.y, node.size, 0, Math.PI*2);
+                nCtx.fillStyle = '#C5A059';
+                nCtx.fill();
+                
+                for(let j=i+1; j<nodes.length; j++) {
+                    const other = nodes[j];
+                    const ddx = node.x - other.x;
+                    const ddy = node.y - other.y;
+                    const ddist = Math.sqrt(ddx*ddx + ddy*ddy);
+                    
+                    if(ddist < 150) {
+                        nCtx.beginPath();
+                        nCtx.moveTo(node.x, node.y);
+                        nCtx.lineTo(other.x, other.y);
+                        nCtx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animateNeural);
+        }
+        
+        window.addEventListener('resize', initNeural);
+        initNeural();
+        animateNeural();
+
+
+        // --- GSAP LOGIC ---
+        
+        // Cursor
+        const cursor = document.querySelector('.cursor');
+        const triggers = document.querySelectorAll('.hover-trigger');
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px'; cursor.style.top = e.clientY + 'px';
+        });
+        triggers.forEach(t => {
+            t.addEventListener('mouseenter', () => document.body.classList.add('hover-active'));
+            t.addEventListener('mouseleave', () => document.body.classList.remove('hover-active'));
+        });
+
+        // Golden Thread
+        gsap.to("#golden-thread", {
+            strokeDashoffset: 0, ease: "none",
+            scrollTrigger: { trigger: "body", start: "top top", end: "bottom bottom", scrub: 1 }
+        });
+
+        // Showroom Horizontal Scroll
+        const showroomWrapper = document.querySelector(".showroom-wrapper");
+        
+        const tween = gsap.to(showroomWrapper, {
+            x: () => -(showroomWrapper.scrollWidth - window.innerWidth),
+            ease: "none",
+            scrollTrigger: {
+                trigger: "#showroom-pin",
+                pin: true,
+                scrub: 1,
+                end: () => "+=" + (showroomWrapper.scrollWidth - window.innerWidth),
+                invalidateOnRefresh: true,
+                anticipatePin: 1
+            }
+        });
+
+        // --- BACKGROUND COLOR LOGIC (Fixing Glitch) ---
+        // 1. Force Black on Hero
+        ScrollTrigger.create({
+            trigger: "#hero", start: "top top",
+            onEnter: () => gsap.to("body", { backgroundColor: "#050505", color: "#F2F0E9", duration: 0.5 })
+        });
+
+        // 2. Force Black on Arrival (Buffer Zone)
+        ScrollTrigger.create({
+            trigger: "#arrival", start: "top center", end: "bottom center",
+            onEnter: () => gsap.to("body", { backgroundColor: "#050505", color: "#F2F0E9", duration: 0.5 }),
+            onEnterBack: () => gsap.to("body", { backgroundColor: "#050505", color: "#F2F0E9", duration: 0.5 }),
+            preventOverlaps: true
+        });
+
+        // 3. Turn White ONLY when Showroom is fully active
+        ScrollTrigger.create({
+            trigger: "#showroom-pin", 
+            start: "top center", 
+            end: "bottom center",
+            onEnter: () => gsap.to("body", { backgroundColor: "#F2F0E9", color: "#050505", duration: 0.5 }),
+            onLeaveBack: () => gsap.to("body", { backgroundColor: "#050505", color: "#F2F0E9", duration: 0.5 }),
+            preventOverlaps: true
+        });
+
+        // 4. Turn Black for Intelligence
+        ScrollTrigger.create({
+            trigger: "section:last-of-type", 
+            start: "top 60%", 
+            onEnter: () => gsap.to("body", { backgroundColor: "#050505", color: "#F2F0E9", duration: 0.5 }),
+            onLeaveBack: () => gsap.to("body", { backgroundColor: "#F2F0E9", color: "#050505", duration: 0.5 }),
+            preventOverlaps: true
+        });
+
+        // Text Reveals
+        const revealTexts = document.querySelectorAll('.reveal-text');
+        window.addEventListener('load', () => {
+            revealTexts.forEach((el, index) => {
+                setTimeout(() => el.classList.add('reveal-active'), 300 + (index * 200));
+            });
+        });
+    </script>
+</body>
+</html>
